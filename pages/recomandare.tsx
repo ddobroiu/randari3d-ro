@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Head from "next/head";
-import Layout from "../components/Layout";
+// Layout is provided by pages/_app.tsx, do not wrap pages again to avoid duplicates
 import { FaCamera, FaSearch, FaShoppingCart, FaMagic } from "react-icons/fa";
 
 // Tipuri pentru date
@@ -81,7 +81,7 @@ export default function RecomandarePage() {
   };
 
   return (
-    <Layout>
+    <>
       <Head>
         <title>Găsește mobila din poză - AI Shop the Look</title>
       </Head>
@@ -186,6 +186,6 @@ export default function RecomandarePage() {
           )}
         </div>
       </div>
-    </Layout>
+    </>
   );
 }

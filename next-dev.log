@@ -61,3 +61,7 @@ Eroare Finală Analiză: [Error: aborted] { code: 'ECONNRESET' }
  ✓ Compiled in 462ms (259 modules)
  ✓ Compiled in 324ms (259 modules)
 <w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename 'C:\Users\PC2023\Desktop\randari3d-ro\.next\cache\webpack\client-development\1.pack.gz_' -> 'C:\Users\PC2023\Desktop\randari3d-ro\.next\cache\webpack\client-development\1.pack.gz'
+ ✓ Compiled in 390ms (259 modules)
+ ✓ Compiled in 1754ms (259 modules)
+ ✓ Compiled in 700ms (259 modules)
+ ✓ Compiled in 1537ms (259 modules)
