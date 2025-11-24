@@ -5,14 +5,16 @@ import { useSession } from "next-auth/react";
 import Head from "next/head";
 import { useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { BadgeCheck, Check, Sparkles, Zap } from "lucide-react";
+import { Check, Sparkles, Zap } from "lucide-react";
 import Link from "next/link";
 
-const stripePromise = loadStripe(
+// Gestionăm cheia Stripe cu siguranță (evităm eroarea .match pe undefined)
+const stripeKey =
   process.env.NODE_ENV === "production"
-    ? process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY_LIVE!
-    : process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!
-);
+    ? process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY_LIVE
+    : process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY;
+
+const stripePromise = stripeKey ? loadStripe(stripeKey) : null;
 
 const plans = [
   {
@@ -69,9 +71,15 @@ export default function Planuri() {
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleStripeBuy = async (plan: typeof plans[number]) => {
+    // Verificare preliminară pentru cheia Stripe
+    if (!stripePromise) {
+      alert("Eroare: Cheia publică Stripe nu este configurată în fișierul .env");
+      console.error("Missing Stripe Public Key");
+      return;
+    }
+
     if (!session?.user?.email) {
       alert("Trebuie să fii autentificat!");
-      // Redirect optional către login
       return;
     }
 
@@ -115,15 +123,23 @@ export default function Planuri() {
 
       const { sessionId, error } = await res.json();
 
-      setLoading(null);
-
       if (error || !sessionId) {
+        setLoading(null);
         alert(error || "Eroare la procesarea plății.");
         return;
       }
 
       const stripe = await stripePromise;
-      await stripe?.redirectToCheckout({ sessionId });
+      
+      if (!stripe) {
+        setLoading(null);
+        alert("Eroare la inițializarea Stripe.");
+        return;
+      }
+
+      await stripe.redirectToCheckout({ sessionId });
+      setLoading(null); // Resetăm loading doar dacă redirect-ul nu se întâmplă imediat (deși redirect-ul va schimba pagina)
+      
     } catch (err) {
       console.error(err);
       setLoading(null);
