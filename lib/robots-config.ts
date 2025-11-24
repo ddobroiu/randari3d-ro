@@ -25,7 +25,7 @@ export const ROBOTS: Record<string, RobotConfig> = {
   // 1. STUDIO VIDEO (Google Veo)
   "video": {
     id: "video",
-    title: "Studio Video",
+    title: "Studio Video (Veo)",
     description: "Transformă imagini statice în videoclipuri cinematice cu Google Veo 3.1 Fast.",
     endpoint: "/api/robots/video",
     credits: 25,
@@ -37,11 +37,11 @@ export const ROBOTS: Record<string, RobotConfig> = {
     ]
   },
 
-  // 2. STUDIO DESIGN (Google Imagen - Variații)
+  // 2. STUDIO DESIGN (Google Gemini)
   "design": {
     id: "design",
-    title: "Studio Design Interior",
-    description: "Reamenajează orice cameră. Încarcă o poză și alege un stil nou.",
+    title: "Studio Design Interior (Gemini)",
+    description: "Reamenajează orice cameră folosind puterea Gemini. Încarcă o poză și alege un stil nou.",
     endpoint: "/api/robots/design",
     credits: 10,
     type: "image",
@@ -63,11 +63,11 @@ export const ROBOTS: Record<string, RobotConfig> = {
     ]
   },
 
-  // 3. STUDIO CREAȚIE (Google Imagen - Text to Image)
+  // 3. STUDIO CREAȚIE (Google Gemini)
   "create": {
     id: "create",
-    title: "Studio Creație",
-    description: "Generează imagini de la zero, texturi sau fundaluri pentru proiectele tale.",
+    title: "Studio Creație (Gemini)",
+    description: "Generează imagini de la zero, texturi sau fundaluri folosind Gemini AI.",
     endpoint: "/api/robots/create",
     credits: 5,
     type: "image",
@@ -86,11 +86,11 @@ export const ROBOTS: Record<string, RobotConfig> = {
     ]
   },
 
-  // 4. STUDIO EDITOR (Google Imagen - Editing)
+  // 4. STUDIO EDITOR (Google Gemini)
   "editor": {
     id: "editor",
-    title: "Studio Editor Foto",
-    description: "Modifică elemente din poză folosind instrucțiuni text.",
+    title: "Studio Editor Foto (Gemini)",
+    description: "Modifică elemente din poză sau înlocuiește obiecte folosind instrucțiuni text cu Gemini AI.",
     endpoint: "/api/robots/editor",
     credits: 10,
     type: "image",
