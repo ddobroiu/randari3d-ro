@@ -14,9 +14,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let base64Image = "";
   let mimeType = "image/jpeg";
 
+    // Simple file-based logger to capture request lifecycle for unreliable terminal sessions
+    const logPath = path.join(process.cwd(), "tmp", "analyze-image.log");
+    const log = (msg: string) => {
+        try {
+            const when = new Date().toISOString();
+            const line = `[${when}] ${msg}\n`;
+            const dir = path.dirname(logPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.appendFileSync(logPath, line);
+        } catch (e) {
+            // ignore logging errors
+        }
+    };
+
     try {
         // 1. Pregătire Imagine
         console.log('analyze-image: incoming request, content-type=', req.headers['content-type']);
+        log(`incoming content-type=${req.headers['content-type']}`);
         // JSON path (imageUrl) or multipart/form-data (file upload)
         if (req.headers["content-type"]?.includes("application/json")) {
         const body = await new Promise<any>((resolve, reject) => {
@@ -27,6 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
                 if (!body.imageUrl) {
                     console.warn('analyze-image: missing imageUrl in JSON body', body);
+                    log(`missing imageUrl in JSON body: ${JSON.stringify(body).slice(0,200)}`);
                     return res.status(400).json({ error: "Lipsește imageUrl" });
                 }
         const imgRes = await fetch(body.imageUrl);
@@ -39,11 +55,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const form = formidable({ uploadDir, keepExtensions: true });
                 const parsed: any = await form.parse(req);
                 console.log('analyze-image: parsed form keys=', Object.keys(parsed || {}));
+                log(`parsed form keys=${Object.keys(parsed || {}).join(',')}`);
                 const files = parsed.files || {};
         const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file; // Fix pentru numele câmpului 'file' vs 'image'
         const actualFile = uploadedFile || (Array.isArray(files.image) ? files.image[0] : files.image);
                 if (!actualFile) {
                     console.warn('analyze-image: no uploaded file found, files keys=', Object.keys(files || {}));
+                    log(`no uploaded file found, files=${JSON.stringify(Object.keys(files || {}))}`);
                     return res.status(400).json({ error: "Nicio imagine primită.", details: { files: Object.keys(files || {}) } });
                 }
         // In formidable v3 file path property is 'filepath'
@@ -55,8 +73,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         let token;
         try {
             token = await getGoogleToken();
+            log('got google token');
         } catch (e: any) {
             console.error('analyze-image: failed to get Google token:', e);
+            log(`google token error: ${String(e?.message || e)}`);
             return res.status(500).json({ error: 'Eroare autentificare Google. Verifică variabilele GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY / GOOGLE_PROJECT_ID', details: e?.message });
         }
     
@@ -81,7 +101,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const modelId of modelsToTry) {
         try {
-            console.log(`🔍 Încerc analiză cu modelul: ${modelId}...`);
+                console.log(`🔍 Încerc analiză cu modelul: ${modelId}...`);
+                log(`trying model ${modelId}`);
             const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
             
             const response = await fetch(endpoint, {
@@ -109,13 +130,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.log(`✅ Succes cu modelul: ${modelId}`);
             break; // Am reușit, ieșim din buclă
 
-        } catch (err: any) {
+            } catch (err: any) {
             console.warn(`⚠️ ${modelId} a eșuat:`, err.message);
+            log(`${modelId} failed: ${String(err?.message || err)}`);
             lastError = err;
-        }
+            }
     }
 
     if (!successData) {
+        log(`all models failed. last=${String(lastError?.message || lastError)}`);
         throw new Error(`Toate modelele au eșuat. Ultima eroare: ${lastError?.message}`);
     }
 
@@ -124,11 +147,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const cleanJson = textResponse.replace(/```json|```/g, '').trim();
     const analysis = JSON.parse(cleanJson);
+    log(`analysis parsed successfully: ${JSON.stringify(analysis).slice(0,1000)}`);
 
     return res.status(200).json({ success: true, analysis: analysis });
 
-  } catch (error: any) {
-    console.error("Eroare Finală Analiză:", error);
-    return res.status(500).json({ error: error.message });
-  }
+    } catch (error: any) {
+        console.error("Eroare Finală Analiză:", error);
+        try { log(`final error: ${String(error?.message || error)}`); } catch (e) {}
+        return res.status(500).json({ error: error.message });
+    }
 }
