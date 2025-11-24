@@ -1,0 +1,99 @@
+import nodemailer from "nodemailer";
+
+const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+
+// ✅ Verificare email nou
+export async function sendVerificationEmail(email: string, token: string) {
+  const verifyUrl = `${baseUrl}/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
+
+  await sendMail(email, "✅ Verifică-ți adresa de email", `
+    <h2>Salut!</h2>
+    <p>Apasă pe link pentru a-ți verifica contul:</p>
+    <a href="${verifyUrl}" style="color: #2563eb;">${verifyUrl}</a>
+  `);
+}
+
+// ✅ Resetare parolă
+export async function sendResetEmail(email: string, token: string) {
+  const resetUrl = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+
+  await sendMail(email, "🔑 Resetare parolă", `
+    <h2>Salut!</h2>
+    <p>Apasă pe link pentru a reseta parola:</p>
+    <a href="${resetUrl}" style="color: #2563eb;">${resetUrl}</a>
+  `);
+}
+
+// 🔄 Funcție comună de trimitere email
+async function sendMail(to: string, subject: string, htmlContent: string) {
+  const { RESEND_API_KEY, EMAIL_FROM, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
+
+  if (RESEND_API_KEY && EMAIL_FROM) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: EMAIL_FROM,
+          to,
+          subject,
+          html: `
+            <div style="font-family: sans-serif; color: #333;">
+              ${htmlContent}
+              <br /><br />
+              <p>Cu respect,<br />Echipa Randări 3D</p>
+            </div>
+          `,
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("❌ Resend API error:", res.status, text);
+        throw new Error(`Resend API responded with ${res.status}`);
+      }
+
+      console.log(`✅ Email trimis către ${to} via Resend`);
+      return;
+    } catch (err: any) {
+      console.error("❌ Eroare la trimiterea prin Resend:", err.message);
+    }
+  }
+
+  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !EMAIL_FROM) {
+    console.error("❌ Lipsesc variabile de mediu pentru email (SMTP) și/sau RESEND_API_KEY.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: Number(SMTP_PORT),
+    secure: Number(SMTP_PORT) === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: {
+      rejectUnauthorized: !(process.env.SMTP_ALLOW_SELF_SIGNED === "true" || process.env.NODE_ENV !== "production"),
+    },
+  });
+
+  try {
+    await transporter.sendMail({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      html: `
+        <div style="font-family: sans-serif; color: #333;">
+          ${htmlContent}
+          <br /><br />
+          <p>Cu respect,<br />Echipa Randări 3D</p>
+        </div>
+      `,
+    });
+
+    console.log(`✅ Email trimis către ${to} via SMTP`);
+  } catch (err: any) {
+    console.error("❌ Eroare la trimiterea emailului (SMTP):", err.message);
+  }
+}

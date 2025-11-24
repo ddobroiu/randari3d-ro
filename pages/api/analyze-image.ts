@@ -1,19 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { IncomingForm, Fields, Files } from "formidable";
+import formidable from "formidable";
 import fs from "fs";
 import path from "path";
 import { getGoogleToken, projectId, location } from "@/lib/google-client";
 
 export const config = { api: { bodyParser: false } };
 
-function parseForm(req: NextApiRequest, form: IncomingForm) {
-  return new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
-    form.parse(req, (err, fields, files) => {
-      if (err) reject(err);
-      else resolve({ fields, files });
-    });
-  });
-}
+// Helper removed: use `await form.parse(req)` (formidable v3 supports promise)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -21,16 +14,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let base64Image = "";
   let mimeType = "image/jpeg";
 
-  try {
-    // 1. Pregătire Imagine
-    if (req.headers["content-type"]?.includes("application/json")) {
+    try {
+        // 1. Pregătire Imagine
+        console.log('analyze-image: incoming request, content-type=', req.headers['content-type']);
+        // JSON path (imageUrl) or multipart/form-data (file upload)
+        if (req.headers["content-type"]?.includes("application/json")) {
         const body = await new Promise<any>((resolve, reject) => {
             let data = "";
             req.on("data", (chunk) => (data += chunk));
             req.on("end", () => resolve(JSON.parse(data || "{}")));
             req.on("error", reject);
         });
-        if (!body.imageUrl) return res.status(400).json({ error: "Lipsește imageUrl" });
+                if (!body.imageUrl) {
+                    console.warn('analyze-image: missing imageUrl in JSON body', body);
+                    return res.status(400).json({ error: "Lipsește imageUrl" });
+                }
         const imgRes = await fetch(body.imageUrl);
         const arrayBuffer = await imgRes.arrayBuffer();
         base64Image = Buffer.from(arrayBuffer).toString("base64");
@@ -38,17 +36,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else {
         const uploadDir = path.join(process.cwd(), "tmp");
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-        const form = new IncomingForm({ uploadDir, keepExtensions: true });
-        const { files } = await parseForm(req, form);
+        const form = formidable({ uploadDir, keepExtensions: true });
+                const parsed: any = await form.parse(req);
+                console.log('analyze-image: parsed form keys=', Object.keys(parsed || {}));
+                const files = parsed.files || {};
         const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file; // Fix pentru numele câmpului 'file' vs 'image'
         const actualFile = uploadedFile || (Array.isArray(files.image) ? files.image[0] : files.image);
-
-        if (!actualFile) return res.status(400).json({ error: "Nicio imagine primită." });
-        base64Image = fs.readFileSync(actualFile.filepath, "base64");
-        mimeType = actualFile.mimetype || "image/jpeg";
+                if (!actualFile) {
+                    console.warn('analyze-image: no uploaded file found, files keys=', Object.keys(files || {}));
+                    return res.status(400).json({ error: "Nicio imagine primită.", details: { files: Object.keys(files || {}) } });
+                }
+        // In formidable v3 file path property is 'filepath'
+        const filepath = actualFile.filepath || actualFile.path || actualFile.filePath;
+        base64Image = fs.readFileSync(filepath, "base64");
+        mimeType = actualFile.mimetype || actualFile.type || "image/jpeg";
     }
 
-    const token = await getGoogleToken();
+        let token;
+        try {
+            token = await getGoogleToken();
+        } catch (e: any) {
+            console.error('analyze-image: failed to get Google token:', e);
+            return res.status(500).json({ error: 'Eroare autentificare Google. Verifică variabilele GOOGLE_CLIENT_EMAIL / GOOGLE_PRIVATE_KEY / GOOGLE_PROJECT_ID', details: e?.message });
+        }
     
     // --- LISTA DE MODELE (FALLBACK SYSTEM) ---
     // Încercăm pe rând până merge unul
@@ -66,8 +76,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       Respond ONLY with a valid JSON: { "items": [ { "name": "Canapea", "query": "canapea gri moderna" } ] }
     `;
 
-    let lastError = null;
-    let successData = null;
+    let lastError: any = null;
+    let successData: any = null;
 
     for (const modelId of modelsToTry) {
         try {
