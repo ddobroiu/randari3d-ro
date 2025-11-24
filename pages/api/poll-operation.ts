@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma"; // Avem nevoie de prisma pentru a salva istoricul la final
+import { prisma } from "@/lib/prisma";
 import { getGoogleToken, location } from "@/lib/google-client";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -10,13 +10,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.email) return res.status(401).json({ error: "Neautorizat." });
 
-  const { operationName, prompt } = req.body;
-  if (!operationName) return res.status(400).json({ error: "Operation Name lipsă." });
+  const { historyId } = req.body;
+  if (!historyId) return res.status(400).json({ error: "ID lipsă." });
+
+  const record = await prisma.history.findUnique({
+      where: { id: historyId },
+      include: { user: true }
+  });
+
+  if (!record || !record.operationId || record.user.email !== session.user.email) {
+      return res.status(404).json({ error: "Înregistrare invalidă." });
+  }
+
+  if (record.status === "completed") {
+      return res.status(200).json({ status: "completed", output: record.imageUrl });
+  }
+  if (record.status === "failed") {
+      return res.status(200).json({ status: "failed", error: "Generare eșuată anterior." });
+  }
 
   try {
     const token = await getGoogleToken();
-    // Endpoint generic pentru operațiuni în Vertex AI
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/${operationName}`;
+    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/${record.operationId}`;
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -26,57 +41,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
+    if (!response.ok) {
+        throw new Error(`Google API Error: ${response.status}`);
+    }
+
     const data = await response.json();
 
-    // Verificăm dacă e gata
     if (data.done) {
       if (data.error) {
-        return res.status(500).json({ status: "failed", error: data.error.message });
+        await prisma.history.update({
+            where: { id: historyId },
+            data: { status: "failed", imageUrl: "error" }
+        });
+        await prisma.user.update({
+            where: { id: record.userId },
+            data: { credits: { increment: record.pointsUsed } }
+        });
+        
+        return res.status(200).json({ status: "failed", error: data.error.message });
       }
 
-      // Extragem video-ul (Google returnează de obicei un URI sau base64 în response)
-      // Structura Veo: response.result.videos[0].bytesBase64Encoded sau uri
-      // Notă: Structura exactă poate varia, facem o verificare defensivă
       const predictions = data.response?.videos || data.response?.candidates || [];
       const videoData = predictions[0];
       
-      let finalUrl = null;
-
+      // FIX: Definim explicit tipul variabilei
+      let finalUrl: string | null = null;
+      
       if (videoData?.uri) {
-        finalUrl = videoData.uri; // GCS URI
+          finalUrl = videoData.uri;
       } else if (videoData?.bytesBase64Encoded) {
-        // Dacă primim Base64, îl facem Data URI pentru frontend
-        finalUrl = `data:video/mp4;base64,${videoData.bytesBase64Encoded}`;
+          finalUrl = `data:video/mp4;base64,${videoData.bytesBase64Encoded}`;
       }
 
       if (finalUrl) {
-        // Salvăm în istoric doar când e gata cu succes
-        const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-        if (user) {
-             await prisma.history.create({
-                data: {
-                    userId: user.id,
-                    imageUrl: "video-generated", // Sau un placeholder, deoarece base64 e prea mare pt DB uneori
-                    // Ideal ar fi să salvăm video-ul în S3/Uploadthing și să punem link-ul aici
-                    // Pentru MVP returnăm base64 direct la user
-                    prompt: prompt || "Video Veo",
-                    robot: "video-image",
-                    pointsUsed: 25,
-                }
-            });
-        }
-        
-        return res.status(200).json({ status: "succeeded", output: finalUrl });
+        await prisma.history.update({
+            where: { id: historyId },
+            data: { 
+                status: "completed",
+                imageUrl: finalUrl 
+            }
+        });
+        return res.status(200).json({ status: "completed", output: finalUrl });
       } else {
-         return res.status(500).json({ status: "failed", error: "Format răspuns Google necunoscut." });
+          return res.status(500).json({ status: "failed", error: "Output format unknown" });
       }
     }
 
-    // Dacă nu e gata ("done": false sau lipsă)
     return res.status(200).json({ status: "processing" });
 
   } catch (error: any) {
-    console.error("Polling Error:", error);
+    console.error("Check Status Error:", error);
     return res.status(500).json({ error: error.message });
   }
 }

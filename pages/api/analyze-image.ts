@@ -1,131 +1,96 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import formidable, { File as FormidableFile } from "formidable";
+import { IncomingForm, Fields, Files } from "formidable";
 import fs from "fs";
-import OpenAI from "openai";
+import path from "path";
+import { getGoogleToken, projectId, location } from "@/lib/google-client";
 
-export const config = {
-  api: { bodyParser: false }, // suport pentru fișiere
-};
+export const config = { api: { bodyParser: false } };
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+function parseForm(req: NextApiRequest, form: IncomingForm) {
+  return new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
+    form.parse(req, (err, fields, files) => {
+      if (err) reject(err);
+      else resolve({ fields, files });
+    });
+  });
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // 🟣 1. Caz: imagine din robot (URL trimis ca JSON)
-  if (req.headers["content-type"]?.includes("application/json")) {
-    try {
-      const body = await new Promise<any>((resolve, reject) => {
-        let data = "";
-        req.on("data", (chunk) => (data += chunk));
-        req.on("end", () => resolve(JSON.parse(data || "{}")));
-        req.on("error", reject);
-      });
+  const uploadDir = path.join(process.cwd(), "tmp");
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+  const form = new IncomingForm({ uploadDir, keepExtensions: true });
 
-      const { imageUrl } = body;
+  try {
+    const { files } = await parseForm(req, form);
+    const file = Array.isArray(files.image) ? files.image[0] : files.image;
 
-      if (!imageUrl) {
-        return res.status(400).json({ error: "Lipsește imageUrl" });
+    if (!file?.filepath) return res.status(400).json({ error: "Imagine lipsă." });
+
+    const buffer = fs.readFileSync(file.filepath);
+    const base64Image = buffer.toString("base64");
+    const mimeType = file.mimetype || "image/jpeg";
+    const token = await getGoogleToken();
+
+    // FIX: Folosim modelul stabil generic, disponibil global
+    const modelId = "gemini-1.5-flash"; 
+    
+    const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
+
+    const prompt = `
+      Ești un expert în design interior și shopping. Analizează această imagine.
+      Identifică cele mai importante 4-5 piese de mobilier sau decor vizibile.
+      Pentru fiecare piesă, generează un termen de căutare scurt și precis în limba ROMÂNĂ pentru a găsi produse similare într-un magazin online.
+      
+      Exemple: "canapea catifea verde", "lustră modernă aurie", "fotoliu galben", "covor geometric".
+      
+      Răspunde DOAR cu un JSON valid în acest format:
+      {
+        "items": [
+          { "name": "Canapea", "query": "canapea coltar gri modern" },
+          { "name": "Masuta", "query": "masuta cafea sticla" }
+        ]
       }
+    `;
 
-      const aiResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Identifică obiectele și conceptele vizibile în imagine. Răspunde DOAR cu cuvinte cheie separate prin virgulă, fără propoziții.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: imageUrl },
-              },
-            ],
-          },
-        ],
-        max_tokens: 100,
-      });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        contents: [{
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: base64Image } }
+          ]
+        }],
+        generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2
+        }
+      })
+    });
 
-      const reply = aiResponse.choices[0]?.message?.content || "";
-      const keywords = reply
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9,ăâîșț ]/gi, "")
-        .toLowerCase()
-        .split(/[,]+/)
-        .map((k) => k.trim())
-        .filter(Boolean);
-
-      return res.status(200).json({ keywords });
-    } catch (error: any) {
-      console.error("AI Error [imageUrl]:", error);
-      return res.status(500).json({ error: "Eroare AI", detail: error?.message });
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Gemini Error: ${err}`);
     }
+
+    const data = await response.json();
+    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!textResponse) throw new Error("Nu s-a primit analiză de la AI.");
+
+    const analysis = JSON.parse(textResponse);
+
+    return res.status(200).json({ success: true, analysis: analysis });
+
+  } catch (error: any) {
+    console.error("Eroare Analiză:", error);
+    return res.status(500).json({ error: error.message });
   }
-
-  // 🟣 2. Caz: upload manual
-  const form = formidable({ multiples: false });
-
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error("Formidable error:", err);
-      return res.status(400).json({ error: "Eroare la parsarea fișierului" });
-    }
-
-    const uploadedFile = Array.isArray(files.file)
-      ? (files.file[0] as FormidableFile | undefined)
-      : (files.file as FormidableFile | undefined);
-
-    if (!uploadedFile) {
-      return res.status(400).json({ error: "Nicio imagine nu a fost trimisă" });
-    }
-
-    try {
-      const mime = uploadedFile.mimetype || "image/png";
-      const imageData = fs.readFileSync(uploadedFile.filepath);
-
-      const aiResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Identifică obiectele și conceptele vizibile în imagine. Răspunde DOAR cu cuvinte cheie separate prin virgulă, fără propoziții.",
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mime};base64,${imageData.toString("base64")}`,
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 100,
-      });
-
-      const reply = aiResponse.choices[0]?.message?.content || "";
-      const keywords = reply
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9,ăâîșț ]/gi, "")
-        .toLowerCase()
-        .split(/[,]+/)
-        .map((k) => k.trim())
-        .filter(Boolean);
-
-      return res.status(200).json({ keywords });
-    } catch (error: any) {
-      console.error("AI Error [upload]:", error);
-      return res.status(500).json({ error: "Eroare AI", detail: error?.message });
-    }
-  });
 }
