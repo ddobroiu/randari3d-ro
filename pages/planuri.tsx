@@ -1,10 +1,12 @@
+// pages/planuri.tsx
 "use client";
 
 import { useSession } from "next-auth/react";
 import Head from "next/head";
 import { useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { BadgeCheck } from "lucide-react";
+import { BadgeCheck, Check, Sparkles, Zap } from "lucide-react";
+import Link from "next/link";
 
 const stripePromise = loadStripe(
   process.env.NODE_ENV === "production"
@@ -20,10 +22,12 @@ const plans = [
     price: 99,
     priceId: "price_1RrIlUL6CXOzW3xLQ7wMluxp",
     recommended: false,
+    description: "Perfect pentru a testa platforma și proiecte mici.",
     benefits: [
       "Acces rapid la generări de imagini",
       "Suport pentru 3 tipuri de roboți",
-      "Opțiuni de personalizare a generării",
+      "Opțiuni de bază personalizare",
+      "Export format standard",
     ],
   },
   {
@@ -33,10 +37,13 @@ const plans = [
     price: 199,
     priceId: "price_1RrIlpL6CXOzW3xLzmC8tASO",
     recommended: true,
+    description: "Cel mai popular pentru creatori și designeri.",
     benefits: [
+      "Tot ce include Starter",
       "Acces extins la generări video",
-      "5 tipuri de roboți pentru diverse utilizări",
-      "Creare rapidă de imagini de înaltă calitate",
+      "5 tipuri de roboți versatili",
+      "Prioritate la generare",
+      "Calitate High-Definition",
     ],
   },
   {
@@ -46,10 +53,13 @@ const plans = [
     price: 399,
     priceId: "price_1RrImfL6CXOzW3xLT7VDdKei",
     recommended: false,
+    description: "Pentru agenții și volum mare de lucru.",
     benefits: [
-      "Generare nelimitată de imagini și video",
+      "Tot ce include Pro",
+      "Generare nelimitată de imagini",
       "Acces complet la toți roboții avansați",
-      "Suport premium și asistență prioritară",
+      "Suport premium dedicat",
+      "Licență comercială extinsă",
     ],
   },
 ];
@@ -61,123 +71,191 @@ export default function Planuri() {
   const handleStripeBuy = async (plan: typeof plans[number]) => {
     if (!session?.user?.email) {
       alert("Trebuie să fii autentificat!");
+      // Redirect optional către login
       return;
     }
 
     setLoading(plan.slug);
 
     // 1. Verifică dacă există date facturare complete
-    const billingRes = await fetch("/api/billing-info");
-    const billingData = await billingRes.json();
+    try {
+      const billingRes = await fetch("/api/billing-info");
+      const billingData = await billingRes.json();
 
-    const b = billingData.billing;
-    const hasValidBilling =
-      b &&
-      ((b.type === "pj" && b.cui && b.email) ||
-        (b.type === "pf" &&
-          b.name &&
-          b.address &&
-          b.city &&
-          b.county &&
-          b.email));
+      const b = billingData.billing;
+      const hasValidBilling =
+        b &&
+        ((b.type === "pj" && b.cui && b.email) ||
+          (b.type === "pf" &&
+            b.name &&
+            b.address &&
+            b.city &&
+            b.county &&
+            b.email));
 
-    if (!hasValidBilling) {
+      if (!hasValidBilling) {
+        setLoading(null);
+        alert(
+          "Te rugăm să completezi datele de facturare înainte de a cumpăra."
+        );
+        window.location.href = "/dashboard#billing";
+        return;
+      }
+
+      // 2. Creare sesiune Stripe
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          priceId: plan.priceId,
+          quantity: 1,
+          email: session.user.email,
+        }),
+      });
+
+      const { sessionId, error } = await res.json();
+
       setLoading(null);
-      alert(
-        "Completează datele de facturare înainte de a cumpăra. Vei fi redirecționat către dashboard."
-      );
-      window.location.href = "/dashboard#billing";
-      return;
+
+      if (error || !sessionId) {
+        alert(error || "Eroare la procesarea plății.");
+        return;
+      }
+
+      const stripe = await stripePromise;
+      await stripe?.redirectToCheckout({ sessionId });
+    } catch (err) {
+      console.error(err);
+      setLoading(null);
+      alert("A apărut o eroare neașteptată.");
     }
-
-    // 2. Creare sesiune Stripe
-    const res = await fetch("/api/create-checkout-session", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        priceId: plan.priceId,
-        quantity: 1,
-        email: session.user.email,
-      }),
-    });
-
-    const { sessionId, error } = await res.json();
-
-    setLoading(null);
-
-    if (error || !sessionId) {
-      alert(error || "Eroare la procesarea plății.");
-      return;
-    }
-
-    const stripe = await stripePromise;
-    await stripe?.redirectToCheckout({ sessionId });
   };
 
   return (
     <>
       <Head>
-        <title>Planuri de Creditare | Randări 3D AI</title>
+        <title>Planuri și Prețuri | Randări 3D AI</title>
         <meta
           name="description"
-          content="Alege planul potrivit pentru generarea de imagini și video cu inteligență artificială. Vezi abonamentele, beneficii și prețurile pe Randări 3D."
+          content="Alege pachetul de credite potrivit pentru proiectele tale de randare 3D. Prețuri flexibile pentru orice nevoie."
         />
-        {/* SEO TAGS */}
-        <meta property="og:title" content="Planuri de Creditare | Randări 3D AI" />
-        <meta property="og:description" content="Alege planul potrivit pentru generarea de imagini și video cu inteligență artificială. Vezi abonamentele, beneficii și prețurile pe Randări 3D." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://randari3d.ro/planuri" />
-        <meta property="og:image" content="https://randari3d.ro/og-image-planuri.jpg" />
-        <meta name="twitter:title" content="Planuri de Creditare | Randări 3D AI" />
-        <meta name="twitter:description" content="Alege planul potrivit pentru generarea de imagini și video cu inteligență artificială. Vezi abonamentele, beneficii și prețurile pe Randări 3D." />
-        <meta name="twitter:image" content="https://randari3d.ro/og-image-planuri.jpg" />
-        <meta name="robots" content="index, follow" />
-        <link rel="canonical" href="https://randari3d.ro/planuri" />
       </Head>
 
-      <main className="min-h-screen bg-background text-foreground px-6 py-12 transition-colors">
-        <h1 className="text-4xl font-extrabold mb-16 text-center">
-          Planuri de Creditare
-        </h1>
-        <div className="max-w-7xl mx-auto grid gap-8 grid-cols-1 md:grid-cols-3">
-          {plans.map((plan) => (
-            <div
-              key={plan.slug}
-              className={`relative bg-card border border-border rounded-2xl shadow-xl p-8 transition-all hover:shadow-2xl hover:border-primary ${
-                plan.recommended ? "ring-2 ring-primary" : ""
-              }`}
-            >
-              {plan.recommended && (
-                <div className="absolute top-4 right-4 bg-primary text-white text-xs px-3 py-1 rounded-full uppercase font-semibold tracking-wide shadow-md">
-                  Recomandat
-                </div>
-              )}
-              <h2 className="text-2xl font-bold text-primary mb-2">
-                {plan.name}
-              </h2>
-              <p className="text-muted-foreground mb-1 text-sm">
-                {plan.points} puncte incluse
-              </p>
-              <p className="text-3xl font-bold text-foreground mb-6">
-                {plan.price} lei
-              </p>
-              <ul className="text-sm text-muted-foreground mb-8 space-y-3">
-                {plan.benefits.map((benefit, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <BadgeCheck className="w-4 h-4 text-green-500 mt-0.5" />
-                    <span>{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handleStripeBuy(plan)}
-                disabled={loading === plan.slug}
-                className="block w-full text-center px-6 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 transition"
+      <main className="min-h-screen bg-background text-foreground py-20 px-4 sm:px-6 lg:px-8 overflow-hidden relative">
+        {/* Background Gradients */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-primary/5 blur-[120px] rounded-full pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center mb-16 space-y-4">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+              Alege planul potrivit pentru{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">
+                viziunea ta
+              </span>
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Investește în calitate și viteză. Deblochează puterea inteligenței
+              artificiale pentru proiectele tale de design și arhitectură.
+            </p>
+          </div>
+
+          <div className="grid gap-8 lg:gap-10 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-start">
+            {plans.map((plan) => (
+              <div
+                key={plan.slug}
+                className={`relative group flex flex-col h-full bg-card border rounded-2xl transition-all duration-300 ${
+                  plan.recommended
+                    ? "border-primary shadow-2xl scale-100 lg:scale-105 z-20 shadow-primary/20"
+                    : "border-border hover:border-primary/50 hover:shadow-xl shadow-lg"
+                }`}
               >
-                {loading === plan.slug ? "Se procesează..." : "Cumpără cu Stripe"}
-              </button>
-            </div>
-          ))}
+                {plan.recommended && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary to-purple-600 text-white text-sm px-4 py-1 rounded-full font-bold uppercase tracking-wider shadow-lg flex items-center gap-1">
+                    <Sparkles className="w-4 h-4" /> Recomandat
+                  </div>
+                )}
+
+                <div className="p-8 flex-1">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-foreground">
+                      {plan.name}
+                    </h2>
+                    {plan.recommended ? (
+                      <Zap className="w-6 h-6 text-primary" />
+                    ) : (
+                      <div className="w-6 h-6" />
+                    )}
+                  </div>
+
+                  <p className="text-muted-foreground text-sm mb-6 min-h-[40px]">
+                    {plan.description}
+                  </p>
+
+                  <div className="mb-8">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl font-extrabold text-foreground">
+                        {plan.price}
+                      </span>
+                      <span className="text-xl font-medium text-muted-foreground">
+                        lei
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-primary mt-1">
+                      {plan.points} credite incluse
+                    </p>
+                  </div>
+
+                  <hr className="border-border mb-8" />
+
+                  <ul className="space-y-4 mb-8">
+                    {plan.benefits.map((benefit, idx) => (
+                      <li key={idx} className="flex items-start gap-3">
+                        <div className="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Check className="w-3 h-3 text-primary" />
+                        </div>
+                        <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                          {benefit}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="p-8 pt-0 mt-auto">
+                  <button
+                    onClick={() => handleStripeBuy(plan)}
+                    disabled={loading === plan.slug}
+                    className={`w-full py-3 px-6 rounded-xl font-semibold transition-all duration-200 transform active:scale-95 ${
+                      plan.recommended
+                        ? "bg-gradient-to-r from-primary to-purple-600 text-white hover:shadow-lg hover:shadow-primary/25"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    {loading === plan.slug ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Se procesează...
+                      </span>
+                    ) : (
+                      "Alege Planul"
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-16 text-center">
+            <p className="text-muted-foreground">
+              Ai nevoie de un plan personalizat pentru compania ta?{" "}
+              <Link
+                href="/contact"
+                className="text-primary font-medium hover:underline underline-offset-4"
+              >
+                Contactează-ne
+              </Link>
+            </p>
+          </div>
         </div>
       </main>
     </>
