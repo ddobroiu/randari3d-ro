@@ -32,7 +32,6 @@ export default function Sidebar() {
     <aside className="w-64 bg-white dark:bg-[#151a23] border-r border-slate-200 dark:border-[#23263a] hidden md:flex flex-col h-screen sticky top-0">
       <div className="p-6 flex items-center gap-3">
         <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
-        <span className="font-bold text-xl tracking-tight">Randări3D</span>
       </div>
 
       <div className="flex-1 px-4 py-4 space-y-8 overflow-y-auto">

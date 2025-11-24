@@ -229,9 +229,30 @@ export default function Dashboard() {
   useEffect(() => {
     const processingItems = generations.filter(g => g.status === 'processing');
     if (processingItems.length > 0) {
-      const interval = setInterval(() => {
-        refreshHistory();
+      // Poll the server-side operation checker for each processing history item.
+      // The server endpoint will query Google Operations and update the DB when done.
+      const interval = setInterval(async () => {
+        try {
+          // Fire off checks in parallel but don't fail the loop on single errors
+          await Promise.all(
+            processingItems.map((item) =>
+              fetch('/api/poll-operation', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ historyId: item.id })
+              }).catch((e) => {
+                console.warn('poll-operation error for', item.id, e?.message || e);
+              })
+            )
+          );
+        } catch (e) {
+          console.error('Error while polling operations:', e);
+        } finally {
+          // Refresh local history view after attempting checks
+          refreshHistory();
+        }
       }, 5000); // Verifică la fiecare 5 secunde
+
       return () => clearInterval(interval);
     }
   }, [generations, refreshHistory]);
