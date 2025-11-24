@@ -9,9 +9,9 @@ import { getGoogleToken, projectId, location } from "@/lib/google-client";
 
 export const config = { api: { bodyParser: false } };
 
-function parseForm(req: NextApiRequest, form: IncomingForm) {
-    return new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
+function parseForm(req: NextApiRequest, form: any) {
+    return new Promise<{ fields: any; files: any }>((resolve, reject) => {
+      form.parse(req, (err: any, fields: any, files: any) => {
         if (err) reject(err);
         else resolve({ fields, files });
       });
@@ -113,15 +113,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const finalUrl = `data:${imgMime};base64,${imgData}`;
 
-    await prisma.history.create({
-        data: {
-            userId: user.id,
-            imageUrl: finalUrl,
-            prompt: fullPrompt,
-            robot: "design",
-            pointsUsed: pointsUsed,
-            status: "completed"
-        }
+    await (prisma.history as any).create({
+      data: {
+        userId: user.id,
+        imageUrl: finalUrl,
+        prompt: fullPrompt,
+        robot: "design",
+        pointsUsed: pointsUsed,
+        status: "completed"
+      }
     });
 
     return res.status(200).json({ result: { output: finalUrl } });

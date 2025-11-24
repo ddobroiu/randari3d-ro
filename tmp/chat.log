@@ -1,0 +1,195 @@
+[2025-11-24T06:43:03.496Z] token_present=true messages=1
+[2025-11-24T06:43:04.787Z] model=gemini-3-pro-preview status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-3-pro-preview` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:04.788Z] model_error model=gemini-3-pro-preview message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-3-pro-preview` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:05.602Z] model=gemini-1.5-pro-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:05.603Z] model_error model=gemini-1.5-pro-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:05.915Z] model=gemini-1.5-flash-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-flash-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:05.916Z] model_error model=gemini-1.5-flash-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-flash-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:06.223Z] model=gemini-1.0-pro-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.0-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:06.224Z] model_error model=gemini-1.0-pro-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.0-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:56.163Z] token_present=true messages=3
+[2025-11-24T06:43:57.267Z] model=gemini-3-pro-preview status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-3-pro-preview` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:57.268Z] model_error model=gemini-3-pro-preview message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-3-pro-preview` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:57.571Z] model=gemini-1.5-pro-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:57.573Z] model_error model=gemini-1.5-pro-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:58.076Z] model=gemini-1.5-flash-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-flash-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:58.077Z] model_error model=gemini-1.5-flash-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-flash-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:58.891Z] model=gemini-1.0-pro-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.0-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:43:58.892Z] model_error model=gemini-1.0-pro-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.0-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:42.990Z] token_present=true messages=1
+[2025-11-24T06:44:44.157Z] model=gemini-3-pro-preview status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-3-pro-preview` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:44.158Z] model_error model=gemini-3-pro-preview message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-3-pro-preview` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:44.971Z] model=gemini-1.5-pro-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:44.973Z] model_error model=gemini-1.5-pro-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:45.303Z] model=gemini-1.5-flash-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-flash-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:45.303Z] model_error model=gemini-1.5-flash-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.5-flash-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:45.789Z] model=gemini-1.0-pro-002 status=404 body={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.0-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
+[2025-11-24T06:44:45.789Z] model_error model=gemini-1.0-pro-002 message={
+  "error": {
+    "code": 404,
+    "message": "Publisher Model `projects/leg-cu-forminator/locations/us-central1/publishers/google/models/gemini-1.0-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions",
+    "status": "NOT_FOUND"
+  }
+}
+
