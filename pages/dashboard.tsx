@@ -3,9 +3,9 @@
 import { useSession, signOut } from "next-auth/react";
 import Head from "next/head";
 import { useEffect, useState } from "react";
-import Link from "next/link"; // Import Link pentru navigare rapidă
-import Layout from "../components/Layout"; // Asigură-te că Layout include Sidebar-ul nou
-import Sidebar from "../components/Sidebar"; // Importăm Sidebar-ul explicit dacă Layout nu îl are hardcodat
+import Link from "next/link";
+import { useRouter } from "next/router"; // Import necesar pentru redirect
+import Sidebar from "../components/Sidebar"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,16 +16,17 @@ import {
   FaVideo, 
   FaPaintRoller, 
   FaMagic, 
-  FaEraser 
+  FaEraser,
+  FaDownload,
+  FaEdit
 } from "react-icons/fa";
 
-// Iconițe pentru roboți
 const RobotIcons: Record<string, any> = {
   "video": <FaVideo />,
   "design": <FaPaintRoller />,
   "create": <FaMagic />,
   "editor": <FaEraser />,
-  "video-image": <FaVideo />, // Compatibilitate cu intrările vechi
+  "video-image": <FaVideo />,
   "image-decor": <FaPaintRoller />
 };
 
@@ -53,6 +54,7 @@ type BillingInfo = { type: "pf" | "pj"; cui?: string | null; name?: string | nul
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceHistoryItem[]>([]);
@@ -76,7 +78,7 @@ export default function Dashboard() {
   const refreshHistory = () => {
     fetch("/api/history-latest")
       .then((res) => res.json())
-      .then((data) => setGenerations(data?.history || [])); // Asigură-te că API returnează { history: [...] } sau adaptează
+      .then((data) => setGenerations(data?.history || []));
   };
 
   useEffect(() => {
@@ -95,14 +97,14 @@ export default function Dashboard() {
     }
   }, [session]);
 
-  // --- Polling Logic ---
+  // --- Polling Logic (Verificare status) ---
   useEffect(() => {
     const processingItems = generations.filter(g => g.status === 'processing');
     if (processingItems.length > 0) {
       const interval = setInterval(() => {
         processingItems.forEach(async (item) => {
           try {
-            const res = await fetch("/api/robots/check-status", { // Folosim noul path organizat
+            const res = await fetch("/api/robots/check-status", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ historyId: item.id })
@@ -115,6 +117,20 @@ export default function Dashboard() {
       return () => clearInterval(interval);
     }
   }, [generations]);
+
+  // --- Funcție Editare în Lanț ---
+  const handleEditImage = (imageUrl: string, robotType: string) => {
+    localStorage.setItem("edit_image_temp", imageUrl);
+    
+    if (robotType === 'design' || robotType === 'image-decor') {
+        router.push('/robots/design');
+    } else if (robotType === 'editor' || robotType.includes('remove')) {
+        router.push('/robots/editor');
+    } else {
+        // Default fallback
+        router.push('/robots/design');
+    }
+  };
 
   const handleBillingSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,21 +158,17 @@ export default function Dashboard() {
     }
   };
 
-  const referralLink = session?.user?.id ? `https://randari3d.ro/register?ref=${session.user.id}` : "";
-
   return (
     <>
       <Head><title>Dashboard – Randări 3D</title></Head>
       <div className="flex min-h-screen bg-slate-50 dark:bg-[#0b0e14] text-slate-900 dark:text-white">
-        {/* Sidebar inclus direct aici pentru layout fix */}
         <Sidebar /> 
         
         <main className="flex-1 p-8 overflow-y-auto max-h-screen">
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* Coloana Stânga: User Info */}
+            {/* Coloana Stânga */}
             <div className="space-y-6">
-              {/* Card User */}
               <div className="bg-white dark:bg-[#151a23] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-[#23263a]">
                 <h2 className="text-xl font-bold mb-2">Salut, {fullName}!</h2>
                 <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl mb-4">
@@ -168,12 +180,11 @@ export default function Dashboard() {
                 </Link>
               </div>
 
-              {/* Card Facturare */}
               <div className="bg-white dark:bg-[#151a23] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-[#23263a]">
                 <h3 className="font-bold mb-4">Date Facturare (Oblio)</h3>
                 <div className="flex gap-4 mb-4 text-sm">
-                  <label className="flex items-center gap-2"><input type="radio" checked={billing.type === "pf"} onChange={() => {setBilling(b=>({...b, type:"pf"})); setShowBillingForm(true)}}/> Fizică</label>
-                  <label className="flex items-center gap-2"><input type="radio" checked={billing.type === "pj"} onChange={() => {setBilling(b=>({...b, type:"pj"})); setShowBillingForm(true)}}/> Juridică</label>
+                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={billing.type === "pf"} onChange={() => {setBilling(b=>({...b, type:"pf"})); setShowBillingForm(true)}}/> Fizică</label>
+                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={billing.type === "pj"} onChange={() => {setBilling(b=>({...b, type:"pj"})); setShowBillingForm(true)}}/> Juridică</label>
                 </div>
                 {showBillingForm && (
                   <form onSubmit={handleBillingSave} className="space-y-3">
@@ -200,10 +211,9 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Coloana Dreapta: Conținut Principal */}
+            {/* Coloana Dreapta */}
             <div className="lg:col-span-2 space-y-8">
               
-              {/* Istoric Generări */}
               <div className="bg-white dark:bg-[#151a23] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-[#23263a]">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                     Istoric Creații
@@ -215,60 +225,89 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {generations.map((gen) => (
-                      <div key={gen.id} className="group relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer"
-                           onClick={() => {
-                             if (gen.status === "processing" || gen.status === "failed") return;
-                             if (gen.robot.includes("video") || gen.imageUrl.endsWith(".mp4")) setModalVideo(gen.imageUrl);
-                             else setModalImage(gen.imageUrl);
-                           }}
-                      >
-                        {/* Zona Media */}
-                        <div className="aspect-video w-full relative">
-                            {gen.status === "processing" ? (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 animate-pulse">
-                                    <FaClock className="text-2xl text-blue-500 mb-2 animate-spin-slow"/>
-                                    <span className="text-xs font-bold text-blue-600">Se lucrează...</span>
-                                </div>
-                            ) : gen.status === "failed" ? (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-50 dark:bg-red-900/20">
-                                    <FaExclamationCircle className="text-2xl text-red-500 mb-1"/>
-                                    <span className="text-xs font-bold text-red-500">Eșuat</span>
-                                </div>
-                            ) : (
-                                <>
-                                    {(gen.robot.includes("video") || gen.imageUrl.endsWith(".mp4") || gen.imageUrl.startsWith("data:video")) ? (
-                                        <div className="w-full h-full bg-black flex items-center justify-center relative">
-                                            <video src={gen.imageUrl} className="w-full h-full object-cover opacity-90" />
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition">
-                                                <FaPlayCircle className="text-4xl text-white opacity-90 group-hover:scale-110 transition" />
+                    {generations.map((gen) => {
+                        // Determinăm tipul
+                        const isVideo = gen.imageUrl.startsWith("data:video") || gen.robot.includes("video") || gen.imageUrl.endsWith(".mp4");
+                        
+                        return (
+                          <div key={gen.id} className="group relative rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer"
+                               onClick={() => {
+                                 if (gen.status === "processing" || gen.status === "failed") return;
+                                 if (isVideo) setModalVideo(gen.imageUrl);
+                                 else setModalImage(gen.imageUrl);
+                               }}
+                          >
+                            {/* Container Imagine */}
+                            <div className="aspect-video w-full relative bg-black/5 dark:bg-white/5">
+                                {gen.status === "processing" ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 animate-pulse">
+                                        <FaClock className="text-2xl text-blue-500 mb-2 animate-spin-slow"/>
+                                        <span className="text-xs font-bold text-blue-600">Se lucrează...</span>
+                                    </div>
+                                ) : gen.status === "failed" ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-50 dark:bg-red-900/20">
+                                        <FaExclamationCircle className="text-2xl text-red-500 mb-1"/>
+                                        <span className="text-xs font-bold text-red-500">Eșuat</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {isVideo ? (
+                                            <div className="w-full h-full bg-black flex items-center justify-center relative">
+                                                <video src={gen.imageUrl} className="w-full h-full object-contain" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition">
+                                                    <FaPlayCircle className="text-4xl text-white opacity-90 group-hover:scale-110 transition" />
+                                                </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <img src={gen.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                                    )}
-                                </>
-                            )}
-                        </div>
-
-                        {/* Detalii */}
-                        <div className="p-3">
-                            <div className="flex justify-between items-center mb-1">
-                                <div className="flex items-center gap-1 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
-                                    {RobotIcons[gen.robot] || <FaMagic />}
-                                    <span>{gen.robot}</span>
-                                </div>
-                                <span className="text-[10px] text-slate-400">{new Date(gen.createdAt).toLocaleDateString("ro-RO")}</span>
+                                        ) : (
+                                            <img src={gen.imageUrl} className="w-full h-full object-contain" />
+                                        )}
+                                    </>
+                                )}
                             </div>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 truncate" title={gen.prompt}>{gen.prompt}</p>
-                        </div>
-                      </div>
-                    ))}
+
+                            <div className="p-3">
+                                <div className="flex justify-between items-center mb-1">
+                                    <div className="flex items-center gap-1 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
+                                        {RobotIcons[gen.robot] || <FaMagic />}
+                                        <span>{gen.robot}</span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400">{new Date(gen.createdAt).toLocaleDateString("ro-RO")}</span>
+                                </div>
+                                <p className="text-sm text-slate-700 dark:text-slate-300 truncate" title={gen.prompt}>{gen.prompt}</p>
+                                
+                                {/* Bara de Acțiuni pentru iteme terminate */}
+                                {gen.status !== "processing" && gen.status !== "failed" && (
+                                    <div className="flex gap-2 mt-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                        <a 
+                                            href={gen.imageUrl} 
+                                            download 
+                                            className="text-xs flex items-center gap-1 text-slate-500 hover:text-blue-600 transition"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <FaDownload /> Save
+                                        </a>
+                                        
+                                        {!isVideo && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleEditImage(gen.imageUrl, gen.robot);
+                                                }}
+                                                className="text-xs flex items-center gap-1 text-purple-600 hover:text-purple-700 transition ml-auto font-semibold"
+                                            >
+                                                <FaEdit /> Editează din nou
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                          </div>
+                        );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Istoric Facturi */}
               {invoiceHistory.length > 0 && (
                 <div className="bg-white dark:bg-[#151a23] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-[#23263a]">
                   <h2 className="text-lg font-bold mb-4">Facturi Recente</h2>
@@ -292,10 +331,9 @@ export default function Dashboard() {
           </div>
         </main>
 
-        {/* Modale */}
         {modalImage && (
           <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setModalImage(null)}>
-            <img src={modalImage} className="max-w-full max-h-[90vh] rounded-lg shadow-2xl"/>
+            <img src={modalImage} className="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain"/>
           </div>
         )}
         {modalVideo && (

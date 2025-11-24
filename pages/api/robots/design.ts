@@ -34,12 +34,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { fields, files } = await parseForm(req, form);
     const file = Array.isArray(files.image) ? files.image[0] : files.image;
-    
     const style = Array.isArray(fields.style) ? fields.style[0] : "";
     const userPrompt = Array.isArray(fields.prompt) ? fields.prompt[0] : "";
     
-    // Prompt optimizat pentru Gemini 3 Pro
-    const fullPrompt = `Redesign this room in a ${style} style. ${userPrompt}. Keep the architectural structure but change materials, furniture and lighting to match the style. Photorealistic, 8k, interior design magazine quality.`;
+    const fullPrompt = `Redesign this room in a ${style} style. ${userPrompt}. Maintain the perspective and architectural structure perfectly. Replace furniture and decor to match the style. Render in 8k resolution, photorealistic quality, interior design magazine style, perfect lighting, sharp details.`;
 
     if (!file?.filepath) return res.status(400).json({ error: "Imagine lipsă." });
 
@@ -53,11 +51,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const mimeType = file.mimetype || "image/jpeg";
     const token = await getGoogleToken();
 
-    // FOLOSIM GEMINI 3 PRO IMAGE PREVIEW
-    const modelId = "gemini-3-pro-image-preview"; 
-    // Dacă nu merge în regiunea ta, încearcă "gemini-2.5-flash-image" ca backup
-    
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
+    const apiVersion = "v1beta1";
+    const modelId = "gemini-2.5-flash-image";
+    const endpoint = `https://${location}-aiplatform.googleapis.com/${apiVersion}/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -81,9 +77,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         ],
         generationConfig: {
-            responseModalities: ["IMAGE"], // Cerem doar imagine
+            responseModalities: ["IMAGE"],
             candidateCount: 1,
-            // Putem adăuga parametri specifici dacă documentația permite (temperature, etc.)
+            temperature: 0.4
         }
       })
     });
@@ -92,22 +88,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const err = await response.text();
         console.error("Google Error:", err);
         await prisma.user.update({ where: { id: user.id }, data: { credits: { increment: pointsUsed } } });
-        throw new Error(`Google Refused: ${response.statusText} (Vezi consola server)`);
+        throw new Error(`Google Refused: ${response.status} - ${err}`);
     }
 
     const data = await response.json();
     
-    // Gemini returnează imaginile în candidates[0].content.parts
-    // Trebuie să găsim partea care conține inline_data (imaginea)
+    // --- FIX PENTRU PARSARE ---
     const parts = data.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find((p: any) => p.inline_data);
+    
+    // Căutăm imaginea verificând ambele tipuri de chei (camelCase sau snake_case)
+    const imagePart = parts.find((p: any) => 
+        (p.inlineData && p.inlineData.mimeType?.startsWith("image/")) || 
+        (p.inline_data && p.inline_data.mime_type?.startsWith("image/"))
+    );
 
-    if (!imagePart || !imagePart.inline_data) {
-        console.error("Google Response:", JSON.stringify(data, null, 2));
-        throw new Error("Nu s-a generat imagine (posibil filtru de siguranță).");
+    if (!imagePart) {
+        console.error("Gemini Response (No Image):", JSON.stringify(data, null, 2));
+        throw new Error("Gemini a răspuns, dar nu a generat imaginea.");
     }
 
-    const finalUrl = `data:${imagePart.inline_data.mime_type};base64,${imagePart.inline_data.data}`;
+    // Extragem datele corecte
+    const imgMime = imagePart.inlineData?.mimeType || imagePart.inline_data?.mime_type;
+    const imgData = imagePart.inlineData?.data || imagePart.inline_data?.data;
+
+    const finalUrl = `data:${imgMime};base64,${imgData}`;
 
     await prisma.history.create({
         data: {
