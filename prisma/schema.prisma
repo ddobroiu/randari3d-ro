@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String           @id @default(cuid())
+  name           String
+  email          String           @unique
+  password       String
+  credits        Int              @default(0)
+  referrerId     String?
+  createdAt      DateTime         @default(now())
+  emailVerified  DateTime?
+  supportTickets SupportTicket[]
+  history        History[]
+  billingInfo    BillingInfo?
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(cuid())
+  email      String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  email      String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  subject   String
+  message   String
+  status    String   @default("deschis")
+  createdAt DateTime @default(now())
+}
+
+model History {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  imageUrl    String
+  prompt      String
+  robot       String
+  pointsUsed  Int
+  invoiceLink String?  // Link factura generată (opțional)
+  createdAt   DateTime @default(now())
+}
+
+// === FINAL: BillingInfo ===
+model BillingInfo {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  // PF/PJ switch
+  type        String   @default("pf") // pf = persoană fizică, pj = persoană juridică
+
+  // Persoană fizică
+  name        String?
+  address     String?
+  city        String?
+  county      String?
+  email       String
+
+  // Firmă (PJ)
+  cui         String?
+  companyName String? // Denumirea firmei
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

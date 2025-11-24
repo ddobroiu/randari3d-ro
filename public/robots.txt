@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://randari3d.ro/sitemap.xml
