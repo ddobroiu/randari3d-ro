@@ -1,0 +1,63 @@
+
+> randari@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.4.1
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.100.84:3000
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 3.4s
+ ○ Compiling /api/analyze-image ...
+ ✓ Compiled /api/analyze-image in 4.8s (464 modules)
+analyze-image: incoming request, content-type= application/json
+SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at IncomingMessage.eval (pages\api\analyze-image.ts:58:45)
+  56 |             let data = "";
+  57 |             req.on("data", (chunk) => (data += chunk));
+> 58 |             req.on("end", () => resolve(JSON.parse(data || "{}")));
+     |                                             ^
+  59 |             req.on("error", reject);
+  60 |         });
+  61 |                 if (!body.imageUrl) {
+ ⨯ uncaughtException: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at IncomingMessage.eval (pages\api\analyze-image.ts:58:45)
+  56 |             let data = "";
+  57 |             req.on("data", (chunk) => (data += chunk));
+> 58 |             req.on("end", () => resolve(JSON.parse(data || "{}")));
+     |                                             ^
+  59 |             req.on("error", reject);
+  60 |         });
+  61 |                 if (!body.imageUrl) {
+ ⨯ uncaughtException:  SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+    at JSON.parse (<anonymous>)
+    at IncomingMessage.eval (pages\api\analyze-image.ts:58:45)
+  56 |             let data = "";
+  57 |             req.on("data", (chunk) => (data += chunk));
+> 58 |             req.on("end", () => resolve(JSON.parse(data || "{}")));
+     |                                             ^
+  59 |             req.on("error", reject);
+  60 |         });
+  61 |                 if (!body.imageUrl) {
+ GET / 200 in 6349ms
+ ✓ Compiled in 1070ms (464 modules)
+ ⚠ Cross origin request detected from 192.168.100.84 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ✓ Compiled /api/auth/[...nextauth] in 332ms (215 modules)
+ GET /api/auth/session 304 in 848ms
+ POST /api/analyze-image 200 in 132355ms
+Eroare Finală Analiză: [Error: aborted] { code: 'ECONNRESET' }
+ ✓ Compiled in 570ms (259 modules)
+ ✓ Compiled in 441ms (259 modules)
+ ✓ Compiled in 466ms (259 modules)
+ ✓ Compiled in 570ms (259 modules)
+ ✓ Compiled in 594ms (259 modules)
+ ✓ Compiled in 626ms (259 modules)
+ ✓ Compiled in 777ms (259 modules)
+ ✓ Compiled in 415ms (259 modules)
+ ✓ Compiled in 462ms (259 modules)
+ ✓ Compiled in 324ms (259 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename 'C:\Users\PC2023\Desktop\randari3d-ro\.next\cache\webpack\client-development\1.pack.gz_' -> 'C:\Users\PC2023\Desktop\randari3d-ro\.next\cache\webpack\client-development\1.pack.gz'

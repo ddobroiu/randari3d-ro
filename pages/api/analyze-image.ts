@@ -13,6 +13,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   let base64Image = "";
   let mimeType = "image/jpeg";
+    let reqAborted = false;
+
+    req.on && req.on('aborted', () => {
+        reqAborted = true;
+        try { log('request aborted by client'); } catch(e){}
+    });
+
+    // Helper: fetch with timeout using AbortController
+    const fetchWithTimeout = async (url: string, timeoutMs = 15000, opts: any = {}) => {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { ...opts, signal: controller.signal });
+            return response;
+        } finally {
+            clearTimeout(id);
+        }
+    };
 
     // Simple file-based logger to capture request lifecycle for unreliable terminal sessions
     const logPath = path.join(process.cwd(), "tmp", "analyze-image.log");
@@ -45,10 +63,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                     log(`missing imageUrl in JSON body: ${JSON.stringify(body).slice(0,200)}`);
                     return res.status(400).json({ error: "Lipsește imageUrl" });
                 }
-        const imgRes = await fetch(body.imageUrl);
-        const arrayBuffer = await imgRes.arrayBuffer();
-        base64Image = Buffer.from(arrayBuffer).toString("base64");
-        mimeType = imgRes.headers.get("content-type") || "image/jpeg";
+        try {
+            if (reqAborted) return res.status(499).json({ error: 'Request aborted' });
+            log(`downloading image from ${body.imageUrl}`);
+            const imgRes = await fetchWithTimeout(body.imageUrl, 15000);
+            log(`image download status ${imgRes?.status}`);
+            if (!imgRes || !imgRes.ok) {
+                const txt = await imgRes?.text().catch(()=>"<no-body>");
+                log(`image download failed status=${imgRes?.status} body=${String(txt).slice(0,300)}`);
+                return res.status(400).json({ error: 'Nu s-a putut descărca imaginea', status: imgRes?.status });
+            }
+            const arrayBuffer = await imgRes.arrayBuffer();
+            log(`downloaded image bytes=${arrayBuffer.byteLength}`);
+            base64Image = Buffer.from(arrayBuffer).toString("base64");
+            mimeType = imgRes.headers.get("content-type") || "image/jpeg";
+        } catch (e:any) {
+            log(`image download exception: ${String(e?.message||e)}`);
+            console.error('analyze-image: image fetch failed', e);
+            if (e?.name === 'AbortError') return res.status(408).json({ error: 'Timeout la descărcarea imaginii' });
+            return res.status(500).json({ error: 'Eroare la descărcarea imaginii', details: String(e?.message||e) });
+        }
     } else {
         const uploadDir = path.join(process.cwd(), "tmp");
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -105,28 +139,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 log(`trying model ${modelId}`);
             const endpoint = `https://${location}-aiplatform.googleapis.com/v1beta1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
             
-            const response = await fetch(endpoint, {
+            const requestBody = JSON.stringify({
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: promptText },
+                        { inline_data: { mime_type: mimeType, data: base64Image } }
+                    ]
+                }],
+                generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+            });
+            log(`calling Vertex AI model=${modelId} payload_len=${requestBody.length}`);
+            if (reqAborted) { log('aborting Vertex AI call because request aborted'); throw new Error('aborted'); }
+            const response = await fetchWithTimeout(endpoint, 60000, {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
-                body: JSON.stringify({
-                    contents: [{
-                        role: "user",
-                        parts: [
-                            { text: promptText },
-                            { inline_data: { mime_type: mimeType, data: base64Image } }
-                        ]
-                    }],
-                    generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
-                })
+                body: requestBody
             });
-
+            log(`vertex response status=${response.status}`);
+            const respText = await response.text().catch(()=>"<no-body>");
             if (!response.ok) {
-                const txt = await response.text();
+                log(`vertex error status=${response.status} body=${String(respText).slice(0,1000)}`);
                 if (response.status === 404) throw new Error(`Model ${modelId} not found (404)`);
-                throw new Error(`API Error: ${txt}`);
+                throw new Error(`API Error: ${respText}`);
             }
-
-            successData = await response.json();
+            try {
+                successData = JSON.parse(respText);
+            } catch (e) {
+                log(`failed to parse vertex response JSON, raw=${String(respText).slice(0,2000)}`);
+                throw new Error('Vertex AI returned non-JSON response');
+            }
             console.log(`✅ Succes cu modelul: ${modelId}`);
             break; // Am reușit, ieșim din buclă
 

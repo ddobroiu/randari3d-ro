@@ -1,0 +1,11 @@
+[2025-11-24T05:42:17.026Z] test-endpoint-called method=GET url=/api/analyze-image-test
+[2025-11-24T05:42:30.726Z] test-endpoint-called method=GET url=/api/analyze-image-test
+[2025-11-24T05:43:21.125Z] incoming content-type=application/json
+[2025-11-24T05:44:49.569Z] final error: aborted
+[2025-11-24T05:45:15.945Z] incoming content-type=application/json
+[2025-11-24T05:45:34.529Z] final error: aborted
+[2025-11-24T05:49:39.261Z] incoming content-type=application/json
+[2025-11-24T05:51:45.717Z] final error: aborted
+[2025-11-24T05:56:03.546Z] incoming content-type=multipart/form-data; boundary=----WebKitFormBoundaryi6OrdWmvXlBWzyZm
+[2025-11-24T05:56:03.604Z] parsed form keys=0,1
+[2025-11-24T05:56:03.606Z] no uploaded file found, files=[]
