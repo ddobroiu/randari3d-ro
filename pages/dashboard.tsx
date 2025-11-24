@@ -1,11 +1,12 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { FaClock, FaExclamationCircle, FaPlayCircle, FaImage } from "react-icons/fa"; // Importuri noi pentru status
 
 const judeteRO = [
   "Alba","Arad","Argeș","Bacău","Bihor","Bistrița-Năsăud","Botoșani","Brașov","Brăila",
@@ -21,6 +22,9 @@ type Generation = {
   prompt: string;
   robot: string;
   createdAt: string;
+  // Câmpuri noi pentru sistemul asincron
+  status?: string; 
+  operationId?: string;
 };
 
 type Referral = {
@@ -53,6 +57,7 @@ export default function Dashboard() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceHistoryItem[]>([]);
   const [modalImage, setModalImage] = useState<string | null>(null);
+  const [modalVideo, setModalVideo] = useState<string | null>(null); // State nou pentru video modal
   const [fullName, setFullName] = useState("");
 
   const [billing, setBilling] = useState<BillingInfo>({
@@ -77,15 +82,22 @@ export default function Dashboard() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
+  // Funcție pentru reîncărcarea istoricului
+  const refreshHistory = () => {
+    fetch("/api/history-latest")
+      .then((res) => res.json())
+      .then((data) => setGenerations(data || []));
+  };
+
   useEffect(() => {
     if (session?.user) {
       setFullName((session.user as any)?.name || "");
-      fetch("/api/history-latest")
-        .then((res) => res.json())
-        .then((data) => setGenerations(data || []));
+      refreshHistory();
+      
       fetch("/api/my-referrals")
         .then((res) => res.json())
         .then((data) => setReferrals(data || []));
+      
       fetch("/api/billing-info")
         .then((res) => res.json())
         .then((data) => {
@@ -96,11 +108,43 @@ export default function Dashboard() {
             }
           }
         });
+      
       fetch("/api/invoice-history")
         .then((res) => res.json())
         .then((data) => setInvoiceHistory(data || []));
     }
   }, [session]);
+
+  // --- LOGICA DE POLLING (Verificare automată status video) ---
+  useEffect(() => {
+    // Filtrăm itemele care sunt în procesare
+    const processingItems = generations.filter(g => g.status === 'processing');
+
+    if (processingItems.length > 0) {
+      const interval = setInterval(() => {
+        processingItems.forEach(async (item) => {
+          try {
+            const res = await fetch("/api/check-video-status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ historyId: item.id })
+            });
+            const data = await res.json();
+            
+            // Dacă s-a terminat (succes sau eroare), reîncărcăm lista
+            if (data.status === "completed" || data.status === "failed") {
+                refreshHistory(); 
+            }
+          } catch (e) {
+            console.error("Eroare verificare status", e);
+          }
+        });
+      }, 5000); // Verificăm la fiecare 5 secunde
+
+      return () => clearInterval(interval);
+    }
+  }, [generations]);
+  // ------------------------------------------------------------
 
   const referralLink = session?.user?.id
     ? `https://randari3d.ro/register?ref=${session.user.id}`
@@ -179,6 +223,11 @@ export default function Dashboard() {
                 <h2 className="text-lg font-bold">Profil utilizator</h2>
                 <p className="text-sm"><span className="font-semibold">Nume:</span> {fullName}</p>
                 <p className="text-sm"><span className="font-semibold">Email:</span> {session.user.email}</p>
+                <div className="mt-2 pt-2 border-t border-border">
+                    <Button variant="destructive" onClick={() => signOut()} size="sm" className="w-full">
+                        Deconectare
+                    </Button>
+                </div>
               </div>
 
               {/* Facturare */}
@@ -186,7 +235,7 @@ export default function Dashboard() {
                 <h3 className="text-base font-semibold mb-1">Date facturare</h3>
                 <p className="text-sm text-muted-foreground mb-2">Completare pentru Oblio</p>
                 <div className="flex gap-4 mb-4">
-                  <label className="flex gap-2 items-center">
+                  <label className="flex gap-2 items-center cursor-pointer">
                     <input
                       type="radio"
                       checked={billing.type === "pf"}
@@ -196,7 +245,7 @@ export default function Dashboard() {
                       }}
                     /> Persoană fizică
                   </label>
-                  <label className="flex gap-2 items-center">
+                  <label className="flex gap-2 items-center cursor-pointer">
                     <input
                       type="radio"
                       checked={billing.type === "pj"}
@@ -247,7 +296,7 @@ export default function Dashboard() {
                         <div>
                           <label className="block text-sm font-medium">Județ</label>
                           <select
-                            className="w-full border rounded-lg px-3 py-2"
+                            className="w-full border rounded-lg px-3 py-2 bg-background text-foreground"
                             value={billing.county || ""}
                             onChange={(e) => setBilling({ ...billing, county: e.target.value })}
                             required
@@ -302,8 +351,8 @@ export default function Dashboard() {
               {/* Parolă */}
               <div className="card-neumorph p-4">
                 <h3 className="text-base font-semibold mb-1">Schimbă parola</h3>
-                <Button onClick={() => setShowPasswordForm((v) => !v)} className="mb-4">
-                  {showPasswordForm ? "Ascunde formularul" : "Schimbă parola"}
+                <Button onClick={() => setShowPasswordForm((v) => !v)} className="mb-4 w-full" variant="outline">
+                  {showPasswordForm ? "Ascunde formularul" : "Deschide formular"}
                 </Button>
                 {showPasswordForm && (
                   <form onSubmit={handlePasswordChange} className="space-y-2">
@@ -340,7 +389,7 @@ export default function Dashboard() {
           {/* Conținut principal */}
           <div className="col-span-2 space-y-8">
             
-            {/* Istoric generări AI */}
+            {/* Istoric generări AI - ACTUALIZAT CU STATUS */}
             <div className="card-neumorph p-4">
               <h2 className="text-lg font-bold mb-4">Istoric generări AI</h2>
               {generations.length === 0 ? (
@@ -350,14 +399,60 @@ export default function Dashboard() {
                   {generations.map((gen) => (
                     <div
                       key={gen.id}
-                      className="card-neumorph p-0 cursor-pointer"
-                      onClick={() => setModalImage(gen.imageUrl)}
+                      className="card-neumorph p-0 cursor-pointer overflow-hidden relative group"
+                      onClick={() => {
+                        // Logică click în funcție de tip
+                        if (gen.status === "processing" || gen.status === "failed") return;
+
+                        if (gen.imageUrl.startsWith("data:video") || gen.robot === "video-image" || gen.imageUrl.endsWith(".mp4")) {
+                            setModalVideo(gen.imageUrl);
+                        } else {
+                            setModalImage(gen.imageUrl);
+                        }
+                      }}
                     >
-                      <img src={gen.imageUrl} className="w-full h-40 object-cover rounded-t-[30px]" />
-                      <div className="p-2">
-                        <p className="text-xs font-semibold text-muted-foreground">{gen.robot}</p>
-                        <p className="text-sm truncate">{gen.prompt}</p>
-                        <span className="text-[11px] text-muted-foreground">{new Date(gen.createdAt).toLocaleString("ro-RO")}</span>
+                      {/* LOGICĂ RENDERING IN FUNCTIE DE STATUS */}
+                      
+                      {/* CAZ 1: PROCESSING */}
+                      {gen.status === "processing" && (
+                         <div className="w-full h-40 bg-slate-100 dark:bg-slate-800 flex flex-col items-center justify-center animate-pulse">
+                            <FaClock className="text-3xl text-blue-500 mb-2 animate-spin-slow" />
+                            <span className="text-xs font-bold text-blue-600">Se lucrează...</span>
+                         </div>
+                      )}
+
+                      {/* CAZ 2: FAILED */}
+                      {gen.status === "failed" && (
+                         <div className="w-full h-40 bg-red-50 dark:bg-red-900/20 flex flex-col items-center justify-center">
+                            <FaExclamationCircle className="text-3xl text-red-500 mb-2" />
+                            <span className="text-xs font-bold text-red-600">Eșuat</span>
+                         </div>
+                      )}
+
+                      {/* CAZ 3: COMPLETED (Sau vechi fără status) */}
+                      {(gen.status === "completed" || !gen.status) && (
+                         <>
+                            {(gen.imageUrl.startsWith("data:video") || gen.robot === "video-image" || gen.imageUrl.endsWith(".mp4")) ? (
+                                <div className="w-full h-40 bg-black relative flex items-center justify-center">
+                                    <video src={gen.imageUrl} className="w-full h-full object-cover opacity-80" />
+                                    <FaPlayCircle className="text-4xl text-white absolute opacity-80 group-hover:scale-110 transition" />
+                                </div>
+                            ) : (
+                                <img src={gen.imageUrl} className="w-full h-40 object-cover rounded-t-[20px]" />
+                            )}
+                         </>
+                      )}
+
+                      <div className="p-3">
+                        <div className="flex justify-between items-center mb-1">
+                             <p className="text-xs font-bold uppercase text-primary">{gen.robot}</p>
+                             {/* Badge de status */}
+                             {gen.status === "processing" && <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>}
+                        </div>
+                        <p className="text-sm truncate text-foreground/80 mb-1" title={gen.prompt}>
+                            {gen.prompt || "Fără prompt"}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground">{new Date(gen.createdAt).toLocaleString("ro-RO")}</span>
                       </div>
                     </div>
                   ))}
@@ -371,7 +466,7 @@ export default function Dashboard() {
                 <h2 className="text-lg font-bold mb-4">Istoric facturi</h2>
                 <div className="space-y-3">
                   {invoiceHistory.map((inv) => (
-                    <div key={inv.id} className="flex justify-between items-center border-b pb-2">
+                    <div key={inv.id} className="flex justify-between items-center border-b pb-2 border-border">
                       <div>
                         <p className="text-sm font-semibold">{inv.prompt}</p>
                         <p className="text-xs text-muted-foreground">{inv.robot}</p>
@@ -393,12 +488,32 @@ export default function Dashboard() {
         {/* Modal imagine */}
         {modalImage && (
           <div
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4"
             onClick={() => setModalImage(null)}
           >
-            <img src={modalImage} className="max-w-[90%] max-h-[90%] rounded-xl shadow-2xl" />
+            <img src={modalImage} className="max-w-full max-h-full rounded-xl shadow-2xl" />
           </div>
         )}
+
+        {/* Modal Video (NOU) */}
+        {modalVideo && (
+            <div
+            className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
+            onClick={() => setModalVideo(null)}
+          >
+            <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+                 <video controls autoPlay src={modalVideo} className="w-full rounded-xl shadow-2xl border border-white/20" />
+                 <Button 
+                    className="absolute -top-12 right-0 text-white" 
+                    variant="ghost" 
+                    onClick={() => setModalVideo(null)}
+                 >
+                    Închide
+                 </Button>
+            </div>
+          </div>
+        )}
+
       </main>
     </>
   );

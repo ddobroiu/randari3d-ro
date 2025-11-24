@@ -1,18 +1,17 @@
-// /pages/api/generate-video-from-image.ts
-
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import formidable, { Fields, Files } from "formidable";
+import { IncomingForm, Fields, Files } from "formidable";
 import fs from "fs";
 import path from "path";
+import { getGoogleToken, projectId, location } from "@/lib/google-client";
 
 export const config = {
   api: { bodyParser: false },
 };
 
-function parseForm(req: NextApiRequest, form: InstanceType<typeof formidable.IncomingForm>) {
+function parseForm(req: NextApiRequest, form: IncomingForm) {
   return new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
     form.parse(req, (err, fields, files) => {
       if (err) reject(err);
@@ -25,116 +24,106 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const session = await getServerSession(req, res, authOptions);
-  if (!session?.user?.email) return res.status(401).json({ error: "Trebuie să fii autentificat." });
+  if (!session?.user?.email) return res.status(401).json({ error: "Neautorizat." });
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return res.status(404).json({ error: "Utilizatorul nu a fost găsit." });
+  if (!user) return res.status(404).json({ error: "User inexistent." });
 
   const uploadDir = path.join(process.cwd(), "tmp");
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-  const form = new formidable.IncomingForm({ uploadDir, keepExtensions: true });
+  const form = new IncomingForm({ 
+    uploadDir, 
+    keepExtensions: true,
+    allowEmptyFiles: false,
+    minFileSize: 0 
+  });
 
   try {
     const { fields, files } = await parseForm(req, form);
-
     const file = Array.isArray(files.image) ? files.image[0] : files.image;
     const prompt = Array.isArray(fields.prompt) ? fields.prompt[0] : fields.prompt;
-    const duration = Array.isArray(fields.duration) ? fields.duration[0] : fields.duration || "5";
-    const quality = Array.isArray(fields.quality) ? fields.quality[0] : fields.quality || "standard";
+    const durationInput = Array.isArray(fields.duration) ? fields.duration[0] : fields.duration || "4";
 
-    if (!file?.filepath || !prompt) {
-      return res.status(400).json({ error: "Imaginea și promptul sunt necesare." });
-    }
+    if (!file?.filepath || !prompt) return res.status(400).json({ error: "Imagine și prompt necesare." });
 
-    const base64Image = fs.readFileSync(file.filepath, "base64");
-    const mimeType = file.mimetype || "image/jpeg";
+    let duration = parseInt(durationInput);
+    if (![4, 6, 8].includes(duration)) duration = 8;
 
-    let pointsUsed = 15;
-    if (duration === "5" && quality === "pro") pointsUsed = 25;
-    else if (duration === "10" && quality === "standard") pointsUsed = 30;
-    else if (duration === "10" && quality === "pro") pointsUsed = 50;
+    const pointsUsed = duration === 8 ? 25 : 15;
 
-    if (user.credits < pointsUsed) {
-      return res.status(403).json({ error: "Nu ai suficiente credite." });
-    }
+    if (user.credits < pointsUsed) return res.status(403).json({ error: "Credite insuficiente." });
 
+    // Scădem creditele
     await prisma.user.update({
       where: { id: user.id },
       data: { credits: { decrement: pointsUsed } },
     });
 
-    // Apel API Replicate
-    const predictionRes = await fetch("https://api.replicate.com/v1/predictions", {
+    const buffer = fs.readFileSync(file.filepath);
+    const base64Image = buffer.toString("base64");
+    const mimeType = file.mimetype || "image/jpeg";
+
+    const token = await getGoogleToken();
+    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/veo-3.1-fast-generate-001:predictLongRunning`;
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Token ${process.env.REPLICATE_API_TOKEN}`,
-        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify({
-        version: "97da1f6c1fae926420a16b3c538b778f7fc317b8a16b3750f6bc39b106747793",
-        input: {
-          start_image: `data:${mimeType};base64,${base64Image}`,
-          prompt,
-          fps: 24,
-          motion: "pan",
-          duration: Number(duration),
-          quality,
-        },
-      }),
+        instances: [
+          {
+            prompt: prompt,
+            image: {
+              bytesBase64Encoded: base64Image,
+              mimeType: mimeType
+            }
+          }
+        ],
+        parameters: {
+          sampleCount: 1,
+          durationSeconds: duration,
+          aspectRatio: "16:9",
+          personGeneration: "allow_adult"
+        }
+      })
     });
 
-    const textResponse = await predictionRes.text();
-    console.log("Replicate API response (raw):", textResponse);
-
-    let prediction;
-    try {
-      prediction = JSON.parse(textResponse);
-    } catch (e) {
-      console.error("Parsing error:", e);
-      return res.status(500).json({ error: "Răspuns nevalid de la API Replicate", detail: textResponse });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Google API Error:", errorText);
+      await prisma.user.update({ where: { id: user.id }, data: { credits: { increment: pointsUsed } } });
+      throw new Error(`Google a refuzat cererea: ${response.status} - ${errorText}`);
     }
 
-    if (predictionRes.status !== 201) {
-      console.error("Eroare la generare:", prediction);
-      return res.status(500).json({ error: "Generarea a eșuat.", detail: prediction });
-    }
+    const data = await response.json();
+    const operationName = data.name;
 
-    const getUrl = prediction.urls.get;
-    let output = null;
-
-    for (let i = 0; i < 150; i++) {
-      const pollRes = await fetch(getUrl, {
-        headers: { Authorization: `Token ${process.env.REPLICATE_API_TOKEN}` },
-      });
-      const pollData = await pollRes.json();
-
-      if (pollData.status === "succeeded") {
-        output = pollData.output;
-        break;
-      } else if (pollData.status === "failed") {
-        console.error("Generare eșuată:", pollData);
-        return res.status(500).json({ error: "Generarea a eșuat." });
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-
-    if (!output) return res.status(500).json({ error: "Fără rezultat după așteptare." });
-
+    // SALVĂM ÎN DB CU STATUS "PROCESSING"
+    // Utilizatorul va vedea acest item în Dashboard ca fiind "În lucru"
     await prisma.history.create({
-      data: {
-        userId: user.id,
-        imageUrl: output,
-        prompt,
-        robot: "video-image",
-        pointsUsed,
-      },
+        data: {
+            userId: user.id,
+            imageUrl: "", // Încă nu avem URL-ul, e în procesare
+            prompt: prompt,
+            robot: "video-image",
+            pointsUsed: pointsUsed,
+            status: "processing", // Status nou
+            operationId: operationName // Cheia pentru verificare ulterioară
+        }
     });
 
-    return res.status(200).json({ result: { output } });
-  } catch (error) {
-    console.error("Eroare internă:", error);
-    return res.status(500).json({ error: "Eroare internă server.", detail: error });
+    return res.status(200).json({ 
+      success: true, 
+      operationName: operationName,
+      message: "Generarea a început. Poți găsi rezultatul în Dashboard când e gata."
+    });
+
+  } catch (error: any) {
+    console.error("Server Error:", error);
+    return res.status(500).json({ error: error.message });
   }
 }
