@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getGoogleToken, location } from "@/lib/google-client";
+import fs from "fs";
+import path from "path";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -42,10 +44,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!response.ok) {
-        throw new Error(`Google API Error: ${response.status}`);
+        const txt = await response.text().catch(()=>"<no-body>");
+        // Log non-ok response
+        try {
+          const tmpDir = path.join(process.cwd(), "tmp");
+          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+          fs.appendFileSync(path.join(tmpDir, "poll-operation.log"), `[${new Date().toISOString()}] historyId=${historyId} google_error_status=${response.status} body=${txt}\n`);
+        } catch (e) {}
+        throw new Error(`Google API Error: ${response.status} ${txt}`);
     }
 
     const data = await response.json();
+
+    // Persist a short debug snapshot of Google's response for troubleshooting
+    try {
+      const tmpDir = path.join(process.cwd(), "tmp");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+      const snippet = JSON.stringify(data, Object.keys(data).slice(0,20));
+      fs.appendFileSync(path.join(tmpDir, "poll-operation.log"), `[${new Date().toISOString()}] historyId=${historyId} google_response=${snippet}\n`);
+    } catch (e) {
+      // ignore logging errors
+    }
 
     if (data.done) {
       if (data.error) {

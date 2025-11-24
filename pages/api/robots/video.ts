@@ -9,9 +9,9 @@ import { getGoogleToken, projectId, location } from "@/lib/google-client";
 
 export const config = { api: { bodyParser: false } };
 
-function parseForm(req: NextApiRequest, form: IncomingForm) {
-  return new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
-    form.parse(req, (err, fields, files) => {
+function parseForm(req: NextApiRequest, form: any) {
+  return new Promise<{ fields: any; files: any }>((resolve, reject) => {
+    form.parse(req, (err: any, fields: any, files: any) => {
       if (err) reject(err);
       else resolve({ fields, files });
     });
@@ -65,24 +65,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     if (!response.ok) {
-        const err = await response.text();
+        const err = await response.text().catch(()=>"<no-body>");
+        // Log the error for debugging
+        try {
+          const tmpDir = path.join(process.cwd(), "tmp");
+          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+          fs.appendFileSync(path.join(tmpDir, "video-start.log"), `[${new Date().toISOString()}] user=${user.id} status=${response.status} body=${err}\n`);
+        } catch (e) {}
         await prisma.user.update({ where: { id: user.id }, data: { credits: { increment: pointsUsed } } });
         throw new Error(`Google Refused: ${err}`);
     }
 
     const data = await response.json();
+    // Log returned operation name for debugging
+    try {
+      const tmpDir = path.join(process.cwd(), "tmp");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+      fs.appendFileSync(path.join(tmpDir, "video-start.log"), `[${new Date().toISOString()}] user=${user.id} response=${JSON.stringify({ name: data?.name })}\n`);
+    } catch (e) {}
     
-    // Salvăm Processing
-    await prisma.history.create({
-        data: {
-            userId: user.id,
-            imageUrl: "",
-            prompt: prompt,
-            robot: "video",
-            pointsUsed: pointsUsed,
-            status: "processing",
-            operationId: data.name
-        }
+    // Salvăm Processing (dacă avem operationId). Dacă nu, returnăm eroare și refacem creditele.
+    if (!data?.name) {
+      // Refund credits and log
+      await prisma.user.update({ where: { id: user.id }, data: { credits: { increment: pointsUsed } } });
+      try {
+      const tmpDir = path.join(process.cwd(), "tmp");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+      fs.appendFileSync(path.join(tmpDir, "video-start.log"), `[${new Date().toISOString()}] user=${user.id} missing_operation_name body=${JSON.stringify(data)}\n`);
+      } catch (e) {}
+      return res.status(500).json({ error: "Google did not return an operation id." });
+    }
+
+    // Use a type-unsafe write to avoid TypeScript generation mismatches in dev environments
+    await (prisma.history as any).create({
+      data: {
+        userId: user.id,
+        imageUrl: "",
+        prompt: prompt,
+        robot: "video",
+        pointsUsed: pointsUsed,
+        status: "processing",
+        operationId: data.name
+      }
     });
 
     return res.status(200).json({ success: true, message: "Generare începută." });
