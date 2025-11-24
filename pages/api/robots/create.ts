@@ -1,4 +1,3 @@
-// ... (Importuri și boilerplate identic ca mai sus)
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -33,10 +32,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { fields } = await parseForm(req, form);
-    const prompt = Array.isArray(fields.prompt) ? fields.prompt[0] : fields.prompt;
+    const userPrompt = Array.isArray(fields.prompt) ? fields.prompt[0] : fields.prompt;
     const aspect = Array.isArray(fields.aspect) ? fields.aspect[0] : "1:1";
 
-    if (!prompt) return res.status(400).json({ error: "Prompt necesar." });
+    if (!userPrompt) return res.status(400).json({ error: "Prompt necesar." });
+
+    // --- SECRETUL CALITĂȚII ---
+    const qualitySuffix = ", photorealistic, 8k, extremely detailed, sharp focus, studio lighting, professional photography";
+    const fullPrompt = `${userPrompt} ${qualitySuffix}`;
 
     const pointsUsed = 5;
     if (user.credits < pointsUsed) return res.status(403).json({ error: "Credite insuficiente." });
@@ -44,7 +47,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await prisma.user.update({ where: { id: user.id }, data: { credits: { decrement: pointsUsed } } });
 
     const token = await getGoogleToken();
-    // Model Text-to-Image
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/imagen-3.0-generate-001:predict`;
 
     const response = await fetch(endpoint, {
@@ -54,8 +56,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1, aspectRatio: aspect, personGeneration: "allow_adult" }
+        instances: [{ prompt: fullPrompt }],
+        parameters: { 
+            sampleCount: 1, 
+            aspectRatio: aspect, 
+            personGeneration: "allow_adult",
+            // Putem adăuga negative prompts pentru a evita blur-ul
+            negativePrompt: "cartoon, painting, illustration, worst quality, low quality, blurry, distorted"
+        }
       })
     });
 
@@ -75,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data: {
             userId: user.id,
             imageUrl: finalUrl,
-            prompt: prompt,
+            prompt: userPrompt,
             robot: "create",
             pointsUsed: pointsUsed,
             status: "completed"
